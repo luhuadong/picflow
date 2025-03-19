@@ -9,13 +9,49 @@ def cli():
     pass
 
 @cli.command()
-@click.argument("input_path", type=click.Path(exists=True))
+@click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--format", "-f", default="webp", help="Output format (webp/jpeg/png)")
 @click.option("--quality", "-q", type=int, help="Compression quality (0-100)")
-def process(input_path, format, quality):
+@click.option("--scale", "-s", help="缩放尺寸，例如 800x600")
+@click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
+def process(input_path, format, quality, scale, method):
     """Process and upload a single image."""
+    from .processors.webp import compress_image
+    from .uploaders.qiniu import upload_to_qiniu
+
     config = AppConfig.load()
     click.echo(f"Processing {input_path}...")
+
+    # 处理图片（假设已实现压缩函数）
+    # 解析缩放尺寸
+    scale_dim = tuple(map(int, scale.split("x"))) if scale else None
+
+    # 生成输出路径
+    output_path = input_path.with_name(f"{input_path.stem}_processed.{format}")
+    # output_path = input_path.with_suffix(f".{format}")
+    
+    # 压缩图片
+    try:
+        compress_image(
+            input_path=input_path,
+            output_path=output_path,
+            quality=quality or config.processing.default_quality,
+            target_format=format,
+            scale=scale_dim,
+            method=method
+        )
+        click.secho(f"✅ 图片处理完成: {output_path}", fg="green")
+    except Exception as e:
+        click.secho(f"❌ 处理失败: {str(e)}", fg="red")
+        return
+
+    # 上传到七牛云
+    try:
+        qiniu_config = config.get_provider_config()
+        url = upload_to_qiniu(output_path, output_path.name, qiniu_config)
+        click.secho(f"✅ 上传成功！访问链接: {url}", fg="green")
+    except Exception as e:
+        click.secho(f"❌ 上传失败: {str(e)}", fg="red")
 
 @cli.command()
 @click.argument("input_dir", type=click.Path(exists=True))
