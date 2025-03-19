@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 
+[English](README.md) | [中文](README_zh.md)
+
 **PicFlow** 是一个命令行工具，用于自动化处理（缩放/压缩）图片并上传到云存储平台（如七牛云）。支持 Windows、Linux 和 macOS。
 
 ## 功能特性

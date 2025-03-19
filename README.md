@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 
+[English](README.md) | [中文](README_zh.md)
+
 **PicFlow** is a command-line tool for automating image processing (scaling/compression) and uploading to cloud storage (e.g., Qiniu Cloud). Supports Windows, Linux, and macOS.
 
 
