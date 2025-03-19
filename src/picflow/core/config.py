@@ -3,6 +3,9 @@ from pathlib import Path
 import yaml
 from typing import Optional, Dict
 
+CONFIG_DIR = Path.home() / ".picflow"
+DEFAULT_CONFIG_PATH = CONFIG_DIR / "config.yaml"
+
 @dataclass
 class QiniuConfig:
     access_key: str
