@@ -14,7 +14,9 @@ def cli():
 @click.option("--quality", "-q", type=int, help="Compression quality (0-100)")
 @click.option("--scale", "-s", help="缩放尺寸，例如 800x600")
 @click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
-def process(input_path, format, quality, scale, method):
+@click.option("--show-qr", is_flag=True, help="Display QR code in terminal")
+@click.option("--qr-file", type=click.Path(path_type=Path), help="Save QR code as PNG file")
+def process(input_path: Path, format: str, quality: int, scale, method, show_qr: bool, qr_file: Path):
     """Process and upload a single image."""
     from .processors.webp import compress_image
     from .uploaders.qiniu import upload_to_qiniu
@@ -50,6 +52,21 @@ def process(input_path, format, quality, scale, method):
         qiniu_config = config.get_provider_config()
         url = upload_to_qiniu(output_path, output_path.name, qiniu_config)
         click.secho(f"✅ 上传成功！访问链接: {url}", fg="green")
+
+        if show_qr or qr_file:
+            from .utils.qr import generate_qr_terminal, generate_qr_image
+            try:
+                if show_qr:
+                    qr_ascii = generate_qr_terminal(url)
+                    click.echo("\n🔍 Scan QR Code:")
+                    click.echo(qr_ascii)
+            
+                if qr_file:
+                    generate_qr_image(url, qr_file)
+                    click.secho(f"✅ QR Code saved to: {qr_file}", fg="green")
+            except ImportError:
+                click.secho("❌ QR 功能需要安装 qrcode 库：pip install qrcode[pil]", fg="red")
+        
     except Exception as e:
         click.secho(f"❌ 上传失败: {str(e)}", fg="red")
 
