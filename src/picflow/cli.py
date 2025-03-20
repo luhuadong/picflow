@@ -29,8 +29,8 @@ def process(input_path: Path, format: str, quality: int, scale, method, show_qr:
     scale_dim = tuple(map(int, scale.split("x"))) if scale else None
 
     # 生成输出路径
-    output_path = input_path.with_name(f"{input_path.stem}_processed.{format}")
-    # output_path = input_path.with_suffix(f".{format}")
+    # output_path = input_path.with_name(f"{input_path.stem}_processed.{format}")
+    output_path = input_path.with_suffix(f".{format}")
     
     # 压缩图片
     try:
