@@ -1,17 +1,19 @@
-import subprocess
+from qiniu import Auth, put_file
 from pathlib import Path
-from ..core.config import QiniuConfig
 
-def upload_to_qiniu(local_path: Path, remote_key: str, config: QiniuConfig):
-    """调用 qshell 上传文件到七牛云"""
-    cmd = [
-        "qshell", "fput",
-        config.bucket,
+def upload_to_qiniu(local_path: Path, remote_key: str, config: "QiniuConfig") -> str:
+    """使用七牛云 Python SDK 上传文件"""
+    auth = Auth(config.access_key, config.secret_key)
+    token = auth.upload_token(config.bucket, key=remote_key)
+
+    ret, info = put_file(
+        token,
         remote_key,
-        str(local_path)
-    ]
-    try:
-        subprocess.run(cmd, check=True)
+        str(local_path),
+        version='v2'
+    )
+
+    if ret and ret.get('key') == remote_key:
         return f"{config.domain}/{remote_key}"
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"上传失败: {str(e)}")
+    else:
+        raise RuntimeError(f"上传失败: {info.text_body}")
