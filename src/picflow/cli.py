@@ -135,5 +135,20 @@ def init(force):
         fg="green"
     )
 
+@cli.command()
+@click.argument("image_path", type=click.Path(exists=True, path_type=Path))
+def info(image_path: Path):
+    """View image details (supports PNG/JPEG/WebP)"""
+    from .info import get_image_info
+    
+    try:
+        info = get_image_info(image_path)
+        click.echo("\n📷 图片信息:")
+        for key, value in info.items():
+            click.secho(f"▸ {key:12}: ", fg="cyan", nl=False)
+            click.echo(value)
+    except Exception as e:
+        click.secho(f"❌ 读取失败: {str(e)}", fg="red")
+
 if __name__ == "__main__":
     cli()
