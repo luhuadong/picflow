@@ -46,6 +46,11 @@ def _parse_exif(exif: dict) -> Dict[str, str]:
         "DateTime": "拍摄时间",
         "Make": "设备品牌",
         "Model": "设备型号",
+        "ExposureTime": "曝光时间",
+        "FNumber": "光圈值",
+        "ISOSpeedRatings": "ISO",
+        "FocalLength": "焦距",
+        "LensModel": "镜头型号",
         "GPSLatitude": "纬度",
         "GPSLongitude": "经度",
         "Artist": "作者",
@@ -58,12 +63,27 @@ def _parse_exif(exif: dict) -> Dict[str, str]:
         272: "设备型号",    # Model
         306: "拍摄时间",    # DateTime
         33432: "版权信息",  # Copyright
+        34853: "GPS 信息",  # GPSInfo
+        37385: "闪光灯模式",
     }
     
     parsed = {}
     for key, value in exif.items():
-        # 优先标签名，其次标签 ID
-        label = mapping.get(key) or mapping.get(int(key)) if key.isdigit() else None
+        # 统一将键转换为字符串处理
+        key_str = str(key)
+        
+        # 尝试匹配字符串标签名（如 'Make'）
+        label = mapping.get(key_str)
+        
+        # 如果未找到，尝试转换为整数匹配标签 ID
+        if not label:
+            try:
+                key_int = int(key_str)
+                label = mapping.get(key_int)
+            except ValueError:
+                pass
+        
+        # 忽略未映射的标签
         if label:
             parsed[label] = str(value)
     
