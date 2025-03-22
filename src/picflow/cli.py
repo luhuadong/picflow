@@ -194,9 +194,12 @@ def process(input_path, format, quality, scale, method, output):
     
     try:
         # 生成输出路径
-        new_name = _generate_processed_name(
+        if not format:
+            format = input_path.suffix[1:].lower()
+
+        new_name = _generate_processed_name (
             original_path = input_path,
-            target_format = format if format else input_path.suffix[1:].lower(),
+            target_format = format,
             scale_str = scale
         )
 
