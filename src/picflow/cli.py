@@ -152,5 +152,42 @@ def info(image_path: Path):
     except Exception as e:
         click.secho(f"❌ 读取失败: {str(e)}", fg="red")
 
+@cli.command()
+@click.argument("remote_keys", nargs=-1, required=True)
+@click.option("--force", "-f", is_flag=True, help="跳过确认提示")
+def delete(remote_keys, force):
+    """删除指定远程文件"""
+    from .core.config import AppConfig
+    from .uploaders.qiniu import delete_from_qiniu
+
+    config = AppConfig.load().get_provider_config()
+
+    # 确认操作（除非强制模式）
+    if not force:
+        click.secho("⚠️  即将删除以下文件：", fg="yellow")
+        for key in remote_keys:
+            click.echo(f"  - {key}")
+        click.confirm("确认删除？", abort=True)
+
+    # 执行删除
+    success = []
+    failed = []
+    for key in remote_keys:
+        try:
+            delete_from_qiniu(key, config)
+            success.append(key)
+        except Exception as e:
+            failed.append((key, str(e)))
+
+    # 输出结果
+    if success:
+        click.secho(f"✅ 成功删除 {len(success)} 个文件：", fg="green")
+        for key in success:
+            click.echo(f"  - {key}")
+    if failed:
+        click.secho(f"❌ 删除失败 {len(failed)} 个文件：", fg="red")
+        for key, err in failed:
+            click.echo(f"  - {key} ({err})")
+
 if __name__ == "__main__":
     cli()
