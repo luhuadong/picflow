@@ -1,6 +1,6 @@
 import click
 from pathlib import Path
-import yaml
+import yaml, os
 from .core.config import AppConfig, CONFIG_DIR, DEFAULT_CONFIG_PATH
 from picflow import __version__
 from datetime import datetime
@@ -50,6 +50,7 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
             try:
                 # 生成最终文件路径
                 final_path = Path(local_path)
+                final_file = Path(local_path)
                 
                 # 需要处理时生成临时文件
                 if need_processing:
@@ -64,9 +65,10 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
                         method=method
                     )
                     final_path = output_path
+                    final_file = os.path.basename(output_path)
 
                 # 生成远程路径
-                remote_key = f"{remote_dir}/{final_path}" if remote_dir else final_path
+                remote_key = f"{remote_dir}/{final_file}" if remote_dir else final_file
                 
                 # 执行上传
                 url = upload_to_qiniu(
