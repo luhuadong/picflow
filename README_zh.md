@@ -33,9 +33,8 @@
 
 - Python 3.8+
 - 外部工具（自动检测）：
-  - [ImageMagick](https://imagemagick.org/)（用于缩放）
-  - [cwebp](https://developers.google.com/speed/webp/docs/precompiled)（WebP 压缩）
-  - [qshell](https://github.com/qiniu/qshell)（七牛云上传）
+  - [ImageMagick](https://imagemagick.org/)（用于缩放，可选）
+  - [cwebp](https://developers.google.com/speed/webp/docs/precompiled)（WebP 压缩，可选）
 
 ### 安装 PicFlow
 
@@ -47,9 +46,15 @@ pip install picflow
 
 ## 快速开始
 
-### 1. 配置七牛云
+### 配置七牛云
 
-创建配置文件 `~/.picflow/config.yaml`：
+执行如下命令创建配置文件 `~/.picflow/config.yaml`：
+
+```bash
+picflow config init
+```
+
+你将通过交互方式输入 `ACCESS_KEY` 和 `SECRET_KEY` 等信息，配置文件内容如下。
 
 ```yaml
 storage:
@@ -60,7 +65,9 @@ storage:
     domain: "https://cdn.example.com"  # CDN 域名
 ```
 
-### 2. 处理并上传图片
+
+
+### 处理图片
 
 ```bash
 # 压缩为 WebP 并上传
@@ -68,6 +75,21 @@ picflow process --format webp --quality 85 ~/images/photo.jpg
 
 # 递归处理整个文件夹
 picflow batch ~/gallery --scale 50% --output ~/compressed_gallery
+```
+
+
+
+### 上传图片
+
+```bash
+# 直接上传图片
+picflow upload ~/images/photo.jpg
+
+# 同时上传多张图片
+picflow upload test.jpg test2.jpg test3.jpg
+
+# 先处理后上传图片
+picflow process --scale 256 --format webp --quality 85 test.jpg
 ```
 
 
@@ -91,6 +113,12 @@ processing:
 ```bash
 # 查看帮助
 picflow --help
+
+# 打印版本信息
+picflow --version
+
+# 查看图片详情
+picflow info ~/images/photo.jpg
 
 # 覆盖配置中的质量参数
 picflow process input.png --quality 75 --format jpeg
