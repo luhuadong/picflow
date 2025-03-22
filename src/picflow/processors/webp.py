@@ -10,8 +10,8 @@ def compress_image(
     input_path: Path,
     output_path: Path,
     quality: int = 85,
-    target_format: str = "webp",
-    scale: Optional[Tuple[int, int]] = None,
+    target_format: str = None,
+    scale: tuple = None,
     method: str = "pillow"  # 或 "cli" 调用外部工具
 ) -> Path:
     """
@@ -43,20 +43,37 @@ def _compress_with_pillow(
     output_path: Path,
     quality: int,
     target_format: str,
-    scale: Optional[Tuple[int, int]]
+    scale: tuple
 ) -> Path:
     """使用 Pillow 库进行压缩和缩放"""
     try:
         with Image.open(input_path) as img:
             # 缩放处理
             if scale:
-                img = img.resize(scale, Image.Resampling.LANCZOS)
+                original_width, original_height = img.size
+                target_width, target_height = scale
+
+                if target_width and target_height:
+                    new_size = (target_width, target_height)
+                elif target_width:
+                    ratio = target_width / original_width
+                    new_height = int(original_height * ratio)
+                    new_size = (target_width, new_height)
+                elif target_height:
+                    ratio = target_height / original_height
+                    new_width = int(original_width * ratio)
+                    new_size = (new_width, target_height)
+                else:
+                    new_size = (original_width, original_height)
+    
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
             
             # 格式转换与保存
             save_kwargs = {"quality": quality, "optimize": True}
             if target_format.lower() == "webp":
                 save_kwargs["method"] = 6  # 压缩方法级别
-            
+            if target_format.lower() == "jpg":
+                target_format = "jpeg"
             img.save(output_path, format=target_format, **save_kwargs)
             return output_path
     except Exception as e:

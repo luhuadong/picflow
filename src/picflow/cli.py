@@ -54,8 +54,17 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
                 
                 # 需要处理时生成临时文件
                 if need_processing:
-                    output_path = _generate_output_path(local_path, format)
-                    # processed_temp = _generate_temp_path(local_path)
+                    scale_str = scale  # 保留原始参数
+                    scale_dim = _parse_scale(scale)
+
+                    output_path = _generate_processed_name(
+                        original_path=local_path,
+                        target_format=format,
+                        scale_str=scale_str
+                    )
+
+                    # output_path = _generate_output_path(local_path, format)
+
                     process_image(
                         input_path=local_path,
                         output_path=output_path,
@@ -98,9 +107,47 @@ def _generate_output_path(original_path: Path, target_format: str) -> Path:
     temp_dir.mkdir(exist_ok=True)
     return temp_dir / f"{original_path.stem}_processed.{target_format}"
 
+def _generate_processed_name(
+    original_path: Path,
+    target_format: str,
+    scale_str: str = None
+) -> str:
+    """生成带缩放标记的文件名"""
+    stem = original_path.stem
+    orig_suffix = original_path.suffix[1:]  # 去掉点号
+    
+    # 添加缩放标记
+    scale_mark = f"_{scale_str}" if scale_str else ""
+    
+    # 确定格式后缀
+    format_suffix = target_format.lower() if target_format else orig_suffix
+    
+    # 构建文件名
+    if target_format and (target_format != orig_suffix):
+        return f"{stem}{scale_mark}.{format_suffix}"
+    else:
+        return f"{stem}{scale_mark}{original_path.suffix}"
+
 def _parse_scale(scale: str) -> tuple:
-    """解析缩放参数"""
-    return tuple(map(int, scale.split("x"))) if scale else None
+    """解析缩放参数，返回 (width, height)，允许为None"""
+    if not scale:
+        return (None, None)
+    
+    parts = scale.lower().split('x')
+    
+    try:
+        if len(parts) == 1:
+            # 格式：256 → 宽度固定，高度按比例
+            return (int(parts[0]), None)
+        elif len(parts) == 2:
+            # 格式：256x 或 x256 或 256x128
+            width = int(parts[0]) if parts[0] else None
+            height = int(parts[1]) if parts[1] else None
+            return (width, height)
+        else:
+            raise ValueError(f"Invalid scale format: {scale}")
+    except ValueError:
+        raise click.BadParameter("缩放参数必须是数字组合（如 256 或 256x128）")
 
 def _print_upload_results(success: list, failed: list, show_qr: bool):
     """格式化输出上传结果"""
@@ -127,12 +174,17 @@ def _show_qrcode(url):
 
 @cli.command()
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--format", "-f", default="webp", help="输出格式 (webp/jpeg/png)")
+@click.option("--format", "-f", type=str, help="输出格式 (webp/jpeg/png)")
 @click.option("--quality", "-q", type=int, help="压缩质量 (0-100)")
 @click.option("--scale", "-s", help="缩放尺寸 (如 800x600)")
 @click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
 @click.option("--output", "-o", type=click.Path(), help="输出目录")
 def process(input_path, format, quality, scale, method, output):
+
+    if (not format) and (not quality) and (not scale):
+        click.secho(f"🚀 无需处理，直接退出", fg="yellow")
+        return
+
     """处理图片但不自动上传"""
     from .core.processor import process_image
     from .core.config import AppConfig
@@ -141,8 +193,20 @@ def process(input_path, format, quality, scale, method, output):
     
     try:
         # 生成输出路径
+        scale_str = scale  # 保留原始参数
+        scale_dim = _parse_scale(scale)
+
+        if not format:
+            format = input_path.suffix[1:].lower()
+
+        new_name = _generate_processed_name(
+            original_path=input_path,
+            target_format=format,
+            scale_str=scale_str
+        )
+
         output_dir = Path(output) if output else input_path.parent
-        output_path = output_dir / f"{input_path.stem}_processed.{format}"
+        output_path = output_dir / new_name
         
         # 处理图片
         result_path = process_image(
