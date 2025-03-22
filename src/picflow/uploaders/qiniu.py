@@ -28,9 +28,15 @@ def upload_to_qiniu(
         version='v2'
     )
 
-    if info.status_code != 200 or ret.get("key") != remote_key:
+    if info.status_code != 200:
         raise RuntimeError(f"上传失败: {info.text_body}")
 
+    # 确认文件存在
+    bucket_manager = BucketManager(auth)
+    stat_ret, _ = bucket_manager.stat(config.bucket, remote_key)
+    if not stat_ret:
+        raise RuntimeError("上传后验证文件失败")
+    
     return f"{config.domain}/{remote_key}"
 
 def delete_from_qiniu(remote_key: str, config: "QiniuConfig") -> bool:

@@ -19,11 +19,12 @@ def cli():
 @click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
 @click.option("--remote-dir", "-d", default="", help="远程存储目录")
 @click.option("--force", is_flag=True, help="覆盖远程同名文件")
+@click.option("--keep", is_flag=True, help="保留处理后的文件")
 @click.option("--show-qr", is_flag=True, help="Display QR code in terminal")
-def upload(local_paths, format, quality, scale, method, remote_dir, force, show_qr: bool):
+def upload(local_paths, format, quality, scale, method, remote_dir, force, keep, show_qr):
     """上传图片（可选处理）"""
     from .core.config import AppConfig
-    from .processors.webp import compress_image
+    from .core.processor import process_image
     from .uploaders.qiniu import upload_to_qiniu
 
     config = AppConfig.load()
@@ -53,18 +54,19 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, show_
                 # 需要处理时生成临时文件
                 if need_processing:
                     output_path = _generate_output_path(local_path, format)
-                    compress_image(
+                    # processed_temp = _generate_temp_path(local_path)
+                    process_image(
                         input_path=local_path,
                         output_path=output_path,
+                        format=format,
                         quality=quality or config.processing.default_quality,
-                        target_format=format,
                         scale=_parse_scale(scale),
                         method=method
                     )
                     final_path = output_path
 
                 # 生成远程路径
-                remote_key = _generate_remote_key(final_path, remote_dir)
+                remote_key = f"{remote_dir}/{final_path}" if remote_dir else final_path
                 
                 # 执行上传
                 url = upload_to_qiniu(
@@ -80,7 +82,8 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, show_
             finally:
                 # 清理临时文件
                 if need_processing and final_path.exists():
-                    final_path.unlink()
+                    if not keep:
+                        final_path.unlink()
                 
                 bar.update(1)
 
@@ -96,12 +99,6 @@ def _generate_output_path(original_path: Path, target_format: str) -> Path:
 def _parse_scale(scale: str) -> tuple:
     """解析缩放参数"""
     return tuple(map(int, scale.split("x"))) if scale else None
-
-def _generate_remote_key(file_path: Path, remote_dir: str) -> str:
-    """生成远程存储路径"""
-    timestamp = datetime.now().strftime("%Y%m%d")
-    base_name = f"{timestamp}_{file_path.name}"
-    return f"{remote_dir}/{base_name}" if remote_dir else base_name
 
 def _print_upload_results(success: list, failed: list, show_qr: bool):
     """格式化输出上传结果"""
@@ -128,39 +125,36 @@ def _show_qrcode(url):
 
 @cli.command()
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--format", "-f", default="webp", help="Output format (webp/jpeg/png)")
-@click.option("--quality", "-q", type=int, help="Compression quality (0-100)")
-@click.option("--scale", "-s", help="缩放尺寸，例如 800x600")
+@click.option("--format", "-f", default="webp", help="输出格式 (webp/jpeg/png)")
+@click.option("--quality", "-q", type=int, help="压缩质量 (0-100)")
+@click.option("--scale", "-s", help="缩放尺寸 (如 800x600)")
 @click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
-def process(input_path: Path, format: str, quality: int, scale, method):
-    """Process and upload a single image."""
-    from .processors.webp import compress_image
+@click.option("--output", "-o", type=click.Path(), help="输出目录")
+def process(input_path, format, quality, scale, method, output):
+    """处理图片但不自动上传"""
+    from .core.processor import process_image
+    from .core.config import AppConfig
 
     config = AppConfig.load()
-    click.echo(f"Processing {input_path}...")
-
-    # 处理图片（假设已实现压缩函数）
-    # 解析缩放尺寸
-    scale_dim = tuple(map(int, scale.split("x"))) if scale else None
-
-    # 生成输出路径
-    # output_path = input_path.with_name(f"{input_path.stem}_processed.{format}")
-    output_path = input_path.with_suffix(f".{format}")
     
-    # 压缩图片
     try:
-        compress_image(
+        # 生成输出路径
+        output_dir = Path(output) if output else input_path.parent
+        output_path = output_dir / f"{input_path.stem}_processed.{format}"
+        
+        # 处理图片
+        result_path = process_image(
             input_path=input_path,
             output_path=output_path,
+            format=format,
             quality=quality or config.processing.default_quality,
-            target_format=format,
-            scale=scale_dim,
+            scale=_parse_scale(scale),
             method=method
         )
-        click.secho(f"✅ 图片处理完成: {output_path}", fg="green")
+        
+        click.secho(f"✅ 处理完成: {result_path}", fg="green")
     except Exception as e:
         click.secho(f"❌ 处理失败: {str(e)}", fg="red")
-        return
 
 @cli.command()
 @click.argument("input_dir", type=click.Path(exists=True))
