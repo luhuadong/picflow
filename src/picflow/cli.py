@@ -2,8 +2,10 @@ import click
 from pathlib import Path
 import yaml
 from .core.config import AppConfig, CONFIG_DIR, DEFAULT_CONFIG_PATH
+from picflow import __version__
 
 @click.group()
+@click.version_option(__version__, "--version", "-V", message="picflow, version %(version)s")
 def cli():
     """PicFlow: Image processing and upload tool."""
     pass
