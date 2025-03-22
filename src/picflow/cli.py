@@ -54,24 +54,25 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
                 
                 # 需要处理时生成临时文件
                 if need_processing:
-                    scale_str = scale  # 保留原始参数
-                    scale_dim = _parse_scale(scale)
+                    if not format:
+                        format = local_path.suffix[1:].lower()
 
                     output_path = _generate_processed_name(
-                        original_path=local_path,
-                        target_format=format,
-                        scale_str=scale_str
+                        original_path = local_path,
+                        target_format = format,
+                        scale_str = scale
                     )
 
-                    # output_path = _generate_output_path(local_path, format)
+                    output_path = _generate_output_path(local_path, format)
+                    click.secho(f" output_path - {output_path}", fg="yellow")
 
                     process_image(
-                        input_path=local_path,
-                        output_path=output_path,
-                        format=format,
-                        quality=quality or config.processing.default_quality,
-                        scale=_parse_scale(scale),
-                        method=method
+                        input_path = local_path,
+                        output_path = output_path,
+                        format = format,
+                        quality = quality or config.processing.default_quality,
+                        scale = _parse_scale(scale),
+                        method = method
                     )
                     final_path = output_path
                     final_file = os.path.basename(output_path)
@@ -81,10 +82,10 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
                 
                 # 执行上传
                 url = upload_to_qiniu(
-                    local_path=final_path,
-                    remote_key=remote_key,
-                    config=qiniu_config,
-                    overwrite=force
+                    local_path = final_path,
+                    remote_key = remote_key,
+                    config = qiniu_config,
+                    overwrite = force
                 )
                 
                 success.append(url)
@@ -93,7 +94,7 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
             finally:
                 # 清理临时文件
                 if need_processing and final_path.exists():
-                    if not keep:
+                    if not keep and final_path != local_path:
                         final_path.unlink()
                 
                 bar.update(1)
@@ -104,7 +105,7 @@ def upload(local_paths, format, quality, scale, method, remote_dir, force, keep,
 def _generate_output_path(original_path: Path, target_format: str) -> Path:
     """生成处理后的临时文件路径"""
     temp_dir = Path("/tmp/picflow_processed")
-    temp_dir.mkdir(exist_ok=True)
+    temp_dir.mkdir(exist_ok = True)
     return temp_dir / f"{original_path.stem}_processed.{target_format}"
 
 def _generate_processed_name(
@@ -193,16 +194,10 @@ def process(input_path, format, quality, scale, method, output):
     
     try:
         # 生成输出路径
-        scale_str = scale  # 保留原始参数
-        scale_dim = _parse_scale(scale)
-
-        if not format:
-            format = input_path.suffix[1:].lower()
-
         new_name = _generate_processed_name(
-            original_path=input_path,
-            target_format=format,
-            scale_str=scale_str
+            original_path = input_path,
+            target_format = format if format else input_path.suffix[1:].lower(),
+            scale_str = scale
         )
 
         output_dir = Path(output) if output else input_path.parent
@@ -210,12 +205,12 @@ def process(input_path, format, quality, scale, method, output):
         
         # 处理图片
         result_path = process_image(
-            input_path=input_path,
-            output_path=output_path,
-            format=format,
-            quality=quality or config.processing.default_quality,
-            scale=_parse_scale(scale),
-            method=method
+            input_path = input_path,
+            output_path = output_path,
+            format = format,
+            quality = quality or config.processing.default_quality,
+            scale = _parse_scale(scale),
+            method = method
         )
         
         click.secho(f"✅ 处理完成: {result_path}", fg="green")
