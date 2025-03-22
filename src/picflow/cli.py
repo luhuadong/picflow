@@ -135,7 +135,6 @@ def _show_qrcode(url):
 def process(input_path: Path, format: str, quality: int, scale, method):
     """Process and upload a single image."""
     from .processors.webp import compress_image
-    from .uploaders.qiniu import upload_to_qiniu
 
     config = AppConfig.load()
     click.echo(f"Processing {input_path}...")
@@ -162,14 +161,6 @@ def process(input_path: Path, format: str, quality: int, scale, method):
     except Exception as e:
         click.secho(f"❌ 处理失败: {str(e)}", fg="red")
         return
-
-    # 上传到七牛云
-    try:
-        qiniu_config = config.get_provider_config()
-        url = upload_to_qiniu(output_path, output_path.name, qiniu_config)
-        click.secho(f"✅ 上传成功！访问链接: {url}", fg="green")
-    except Exception as e:
-        click.secho(f"❌ 上传失败: {str(e)}", fg="red")
 
 @cli.command()
 @click.argument("input_dir", type=click.Path(exists=True))
