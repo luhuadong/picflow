@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 from .core.config import AppConfig, CONFIG_DIR, DEFAULT_CONFIG_PATH
 from picflow import __version__
+from datetime import datetime
 
 @click.group()
 @click.version_option(__version__, "--version", "-V", message="picflow, version %(version)s")
@@ -11,14 +12,127 @@ def cli():
     pass
 
 @cli.command()
+@click.argument("local_paths", nargs=-1, type=click.Path(exists=True, path_type=Path))
+@click.option("--format", "-f", help="处理格式 (webp/jpeg/png)")
+@click.option("--quality", "-q", type=int, help="压缩质量 (0-100)")
+@click.option("--scale", "-s", help="缩放尺寸 (如 800x600)")
+@click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
+@click.option("--remote-dir", "-d", default="", help="远程存储目录")
+@click.option("--force", is_flag=True, help="覆盖远程同名文件")
+@click.option("--show-qr", is_flag=True, help="Display QR code in terminal")
+def upload(local_paths, format, quality, scale, method, remote_dir, force, show_qr: bool):
+    """上传图片（可选处理）"""
+    from .core.config import AppConfig
+    from .processors.webp import compress_image
+    from .uploaders.qiniu import upload_to_qiniu
+
+    config = AppConfig.load()
+    qiniu_config = config.get_provider_config()
+
+    # 参数校验
+    if not local_paths:
+        click.secho("❌ 请指定至少一个文件", fg="red")
+        return
+
+    # 处理参数存在性检查
+    need_processing = any([format, quality, scale])
+
+    # 进度条初始化
+    with click.progressbar(
+        length=len(local_paths),
+        label="上传进度",
+        show_percent=True,
+        show_eta=True
+    ) as bar:
+        success, failed = [], []
+        for local_path in local_paths:
+            try:
+                # 生成最终文件路径
+                final_path = Path(local_path)
+                
+                # 需要处理时生成临时文件
+                if need_processing:
+                    output_path = _generate_output_path(local_path, format)
+                    compress_image(
+                        input_path=local_path,
+                        output_path=output_path,
+                        quality=quality or config.processing.default_quality,
+                        target_format=format,
+                        scale=_parse_scale(scale),
+                        method=method
+                    )
+                    final_path = output_path
+
+                # 生成远程路径
+                remote_key = _generate_remote_key(final_path, remote_dir)
+                
+                # 执行上传
+                url = upload_to_qiniu(
+                    local_path=final_path,
+                    remote_key=remote_key,
+                    config=qiniu_config,
+                    overwrite=force
+                )
+                
+                success.append(url)
+            except Exception as e:
+                failed.append((str(local_path), str(e)))
+            finally:
+                # 清理临时文件
+                if need_processing and final_path.exists():
+                    final_path.unlink()
+                
+                bar.update(1)
+
+    # 输出结果
+    _print_upload_results(success, failed, show_qr)
+
+def _generate_output_path(original_path: Path, target_format: str) -> Path:
+    """生成处理后的临时文件路径"""
+    temp_dir = Path("/tmp/picflow_processed")
+    temp_dir.mkdir(exist_ok=True)
+    return temp_dir / f"{original_path.stem}_processed.{target_format}"
+
+def _parse_scale(scale: str) -> tuple:
+    """解析缩放参数"""
+    return tuple(map(int, scale.split("x"))) if scale else None
+
+def _generate_remote_key(file_path: Path, remote_dir: str) -> str:
+    """生成远程存储路径"""
+    timestamp = datetime.now().strftime("%Y%m%d")
+    base_name = f"{timestamp}_{file_path.name}"
+    return f"{remote_dir}/{base_name}" if remote_dir else base_name
+
+def _print_upload_results(success: list, failed: list, show_qr: bool):
+    """格式化输出上传结果"""
+    if success:
+        click.secho("\n✅ 上传成功:", fg="green")
+        for url in success:
+            click.echo(f"  - {url}")
+            if show_qr:
+                _show_qrcode(url)
+    if failed:
+        click.secho("\n❌ 上传失败:", fg="red")
+        for path, err in failed:
+            click.echo(f"  - {path} ({err})")
+
+def _show_qrcode(url):
+    """生成URL二维码"""
+    from .utils.qr import generate_qr_terminal, generate_qr_image
+    try:
+        qr_ascii = generate_qr_terminal(url)
+        click.echo("\n🔍 Scan QR Code:")
+        click.echo(qr_ascii)
+    except ImportError:
+        click.secho("❌ QR 功能需要安装 qrcode 库：pip install qrcode[pil]", fg="red")
+
+@cli.command()
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--format", "-f", default="webp", help="Output format (webp/jpeg/png)")
 @click.option("--quality", "-q", type=int, help="Compression quality (0-100)")
 @click.option("--scale", "-s", help="缩放尺寸，例如 800x600")
 @click.option("--method", "-m", default="pillow", help="压缩方式 (pillow/cli)")
-@click.option("--show-qr", is_flag=True, help="Display QR code in terminal")
-@click.option("--qr-file", type=click.Path(path_type=Path), help="Save QR code as PNG file")
-def process(input_path: Path, format: str, quality: int, scale, method, show_qr: bool, qr_file: Path):
+def process(input_path: Path, format: str, quality: int, scale, method):
     """Process and upload a single image."""
     from .processors.webp import compress_image
     from .uploaders.qiniu import upload_to_qiniu
@@ -54,21 +168,6 @@ def process(input_path: Path, format: str, quality: int, scale, method, show_qr:
         qiniu_config = config.get_provider_config()
         url = upload_to_qiniu(output_path, output_path.name, qiniu_config)
         click.secho(f"✅ 上传成功！访问链接: {url}", fg="green")
-
-        if show_qr or qr_file:
-            from .utils.qr import generate_qr_terminal, generate_qr_image
-            try:
-                if show_qr:
-                    qr_ascii = generate_qr_terminal(url)
-                    click.echo("\n🔍 Scan QR Code:")
-                    click.echo(qr_ascii)
-            
-                if qr_file:
-                    generate_qr_image(url, qr_file)
-                    click.secho(f"✅ QR Code saved to: {qr_file}", fg="green")
-            except ImportError:
-                click.secho("❌ QR 功能需要安装 qrcode 库：pip install qrcode[pil]", fg="red")
-        
     except Exception as e:
         click.secho(f"❌ 上传失败: {str(e)}", fg="red")
 
